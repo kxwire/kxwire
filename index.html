@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>kxwire chat</title>
+</head>
+<body>
+
+<input id="username" placeholder="username">
+<br><br>
+
+<input id="msg" placeholder="message">
+<button onclick="send()">Send</button>
+
+<br><br>
+
+<input type="file" id="file">
+<button onclick="upload()">Upload</button>
+
+<hr>
+
+<div id="chat"></div>
+
+<script>
+const API = "https://YOUR-WORKER.workers.dev";
+
+let lastCount = 0;
+
+async function send() {
+  const text = msg.value;
+  const user = username.value || "guest";
+
+  await fetch(API + "/send", {
+    method: "POST",
+    body: JSON.stringify({ user, text })
+  });
+
+  msg.value = "";
+  load();
+}
+
+async function upload() {
+  const file = document.getElementById("file").files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = async () => {
+    const base64 = reader.result.split(",")[1];
+
+    const res = await fetch(API + "/upload", {
+      method: "POST",
+      body: JSON.stringify({
+        name: file.name,
+        data: base64
+      })
+    });
+
+    const data = await res.json();
+
+    await fetch(API + "/send", {
+      method: "POST",
+      body: JSON.stringify({
+        user: username.value || "guest",
+        text: "[file] " + data.url
+      })
+    });
+
+    load();
+  };
+
+  reader.readAsDataURL(file);
+}
+
+async function load() {
+  const res = await fetch(API + "/messages");
+  const data = await res.json();
+
+  if (data.length !== lastCount) {
+    lastCount = data.length;
+
+    chat.innerHTML = data.map(m => {
+      if (m.text.startsWith("[file]")) {
+        const url = m.text.replace("[file] ", "");
+        return `<div><b>${m.user}</b>: <a href="${url}" target="_blank">file</a></div>`;
+      }
+
+      return `<div><b>${m.user}</b>: ${m.text}</div>`;
+    }).join("");
+  }
+}
+
+setInterval(load, 2000);
+load();
+</script>
+
+</body>
+</html>
